@@ -10,7 +10,7 @@ String APPKEY = "92C305A789728E04C6861E600FF05424";
 
 HardwareSerial LoRaSerial(2);
 unsigned long lastSendTime = 0;
-const unsigned long sendInterval = 60000;
+const unsigned long sendInterval = 45000;
 
 bool isValidSSID(String ssid) {
   ssid.toUpperCase();
