@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Géolocalisation Esclangon</title>
+    <title>Géolocalisation WiFi - Esclangon</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -12,111 +12,293 @@
             padding: 0;
             box-sizing: border-box;
         }
+        
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: #1a1a1a;
-            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0e27;
+            color: #e0e0e0;
         }
+        
         .container {
             display: flex;
             height: 100vh;
         }
+        
         .sidebar {
-            width: 350px;
-            background: #2d2d2d;
-            padding: 20px;
+            width: 380px;
+            background: linear-gradient(180deg, #1a1f3a 0%, #0f1729 100%);
+            padding: 25px;
             overflow-y: auto;
+            box-shadow: 4px 0 20px rgba(0,0,0,0.5);
         }
-        .info-card {
-            background: #3d3d3d;
-            border-radius: 10px;
-            padding: 15px;
-            margin-bottom: 15px;
+        
+        .header {
+            text-align: center;
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #2a3f5f;
         }
-        .info-label {
-            font-size: 12px;
-            color: #888;
+        
+        .header h1 {
+            font-size: 24px;
+            color: #64b5f6;
             margin-bottom: 5px;
         }
-        .info-value {
-            font-size: 24px;
-            font-weight: bold;
-            color: #4CAF50;
-        }
-        .status {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: #4CAF50;
-            margin-right: 5px;
-            animation: pulse 2s infinite;
-        }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-        #map {
-            flex: 1;
-        }
-        .details {
+        
+        .header .subtitle {
             font-size: 12px;
-            color: #aaa;
-            margin-top: 10px;
+            color: #7e8ba3;
         }
-        h2 {
-            margin-bottom: 20px;
+        
+        .status-indicator {
             display: flex;
             align-items: center;
+            justify-content: center;
+            margin: 15px 0;
+            padding: 10px;
+            background: rgba(76, 175, 80, 0.1);
+            border-radius: 8px;
+            border: 1px solid rgba(76, 175, 80, 0.3);
+        }
+        
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #4CAF50;
+            margin-right: 10px;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-dot.disconnected {
+            background: #f44336;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.1); }
+        }
+        
+        .info-card {
+            background: linear-gradient(135deg, #1e2842 0%, #252d47 100%);
+            border-radius: 12px;
+            padding: 18px;
+            margin-bottom: 15px;
+            border: 1px solid #2a3f5f;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .info-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+        }
+        
+        .info-label {
+            font-size: 11px;
+            color: #7e8ba3;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        
+        .info-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #64b5f6;
+            text-shadow: 0 2px 4px rgba(100, 181, 246, 0.3);
+        }
+        
+        .info-value.large {
+            font-size: 20px;
+        }
+        
+        .method-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            background: rgba(100, 181, 246, 0.2);
+            border-radius: 12px;
+            font-size: 11px;
+            color: #64b5f6;
+            margin-top: 5px;
+        }
+        
+        .details-section {
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+        
+        .details-title {
+            font-size: 13px;
+            color: #7e8ba3;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        
+        .ap-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            font-size: 12px;
+        }
+        
+        .ap-item:last-child {
+            border-bottom: none;
+        }
+        
+        .ap-mac {
+            color: #90caf9;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .ap-rssi {
+            color: #a5d6a7;
+            font-weight: 600;
+        }
+        
+        #map {
+            flex: 1;
+            position: relative;
+        }
+        
+        .confidence-high {
+            color: #4CAF50;
+        }
+        
+        .confidence-medium {
+            color: #FF9800;
+        }
+        
+        .confidence-low {
+            color: #f44336;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .stat-box {
+            background: rgba(0,0,0,0.2);
+            padding: 10px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #64b5f6;
+        }
+        
+        .stat-label {
+            font-size: 10px;
+            color: #7e8ba3;
+            margin-top: 4px;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="sidebar">
-            <h2><span class="status"></span> Position Temps Réel</h2>
+            <div class="header">
+                <h1>📍 WiFi Localisation</h1>
+                <div class="subtitle">Polytech Sorbonne - Bâtiment Esclangon</div>
+            </div>
             
-            <div class="info-card">
-                <div class="info-label">🚪 Salle</div>
-                <div class="info-value" id="room">---</div>
+            <div class="status-indicator">
+                <span class="status-dot" id="statusDot"></span>
+                <span id="statusText">Connexion...</span>
             </div>
             
             <div class="info-card">
-                <div class="info-label">🏢 Étage</div>
+                <div class="info-label">🚪 SALLE DÉTECTÉE</div>
+                <div class="info-value" id="room">---</div>
+                <div class="method-badge" id="method">En attente</div>
+            </div>
+            
+            <div class="info-card">
+                <div class="info-label">🏢 ÉTAGE</div>
                 <div class="info-value" id="floor">---</div>
             </div>
             
             <div class="info-card">
-                <div class="info-label">📍 Position</div>
-                <div class="info-value" id="location">---</div>
+                <div class="info-label">📍 POSITION</div>
+                <div class="info-value large" id="location">En attente de données...</div>
             </div>
             
             <div class="info-card">
-                <div class="info-label">🕐 Dernière mise à jour</div>
-                <div class="info-value" id="time">---</div>
-            </div>
-            
-            <div class="info-card">
-                <div class="info-label">📊 Confiance</div>
+                <div class="info-label">🎯 CONFIANCE</div>
                 <div class="info-value" id="confidence">---</div>
+                
+                <div class="stats-grid">
+                    <div class="stat-box">
+                        <div class="stat-value" id="matchedAPs">0</div>
+                        <div class="stat-label">APs Détectés</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="totalAPs">0</div>
+                        <div class="stat-label">APs en Base</div>
+                    </div>
+                </div>
             </div>
             
-            <div class="details" id="details"></div>
+            <div class="info-card">
+                <div class="info-label">🕐 DERNIÈRE MAJ</div>
+                <div class="info-value large" id="time">---</div>
+            </div>
+            
+            <div class="details-section">
+                <div class="details-title">📡 Points d'accès détectés</div>
+                <div id="details"></div>
+            </div>
         </div>
         
         <div id="map"></div>
     </div>
 
     <script>
-        const map = L.map('map').setView([48.845151, 2.357054], 18);
+        const map = L.map('map').setView([48.845151, 2.357054], 19);
         
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
+            attribution: '© OpenStreetMap',
+            maxZoom: 20
         }).addTo(map);
         
         let marker = null;
+        let apMarkers = [];
+        let statusConnected = false;
         
         const ws = new WebSocket('ws://localhost:8000/ws');
+        
+        function updateStatus(connected) {
+            statusConnected = connected;
+            const dot = document.getElementById('statusDot');
+            const text = document.getElementById('statusText');
+            
+            if (connected) {
+                dot.classList.remove('disconnected');
+                text.textContent = 'Connecté • Temps réel';
+                text.style.color = '#4CAF50';
+            } else {
+                dot.classList.add('disconnected');
+                text.textContent = 'Déconnecté';
+                text.style.color = '#f44336';
+            }
+        }
+        
+        function getConfidenceClass(confidenceStr) {
+            const value = parseInt(confidenceStr);
+            if (value >= 70) return 'confidence-high';
+            if (value >= 40) return 'confidence-medium';
+            return 'confidence-low';
+        }
         
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
@@ -127,50 +309,104 @@
                 } else {
                     marker = L.marker([data.lat, data.lon], {
                         icon: L.icon({
-                            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+                            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
                             shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
                             iconSize: [25, 41],
                             iconAnchor: [12, 41],
                             popupAnchor: [1, -34],
                             shadowSize: [41, 41]
                         })
-                    }).addTo(map);
+                    }).addTo(map)
+                      .bindPopup(`<b>${data.room}</b><br>Étage ${data.floor}<br>${data.location}`);
                 }
                 
-                map.setView([data.lat, data.lon], 18);
+                map.setView([data.lat, data.lon], 19);
                 
-                const room = data.room_info;
-                document.getElementById('room').textContent = room.room;
-                document.getElementById('floor').textContent = room.floor;
-                document.getElementById('location').textContent = room.location;
-                document.getElementById('time').textContent = room.timestamp;
-                document.getElementById('confidence').textContent = room.confidence;
+                document.getElementById('room').textContent = data.room;
+                document.getElementById('floor').textContent = data.floor;
+                document.getElementById('location').textContent = data.location;
+                document.getElementById('method').textContent = data.method || 'Unknown';
                 
-                let detailsHTML = '<strong>APs détectés:</strong><br>';
-                data.details.forEach(ap => {
-                    detailsHTML += `${ap.mac} (${ap.ssid}): ${ap.rssi}dB → ${ap.distance}<br>`;
-                });
+                const confidenceEl = document.getElementById('confidence');
+                confidenceEl.textContent = data.confidence;
+                confidenceEl.className = 'info-value ' + getConfidenceClass(data.confidence);
+                
+                document.getElementById('matchedAPs').textContent = data.matched_aps || 0;
+                
+                const timestamp = new Date(data.timestamp);
+                document.getElementById('time').textContent = timestamp.toLocaleTimeString('fr-FR');
+                
+                let detailsHTML = '';
+                if (data.details && data.details.length > 0) {
+                    data.details.forEach(ap => {
+                        const ssid = ap.ssid || 'Unknown';
+                        const distance = ap.distance || '';
+                        detailsHTML += `
+                            <div class="ap-item">
+                                <div>
+                                    <div class="ap-mac">${ap.mac}</div>
+                                    <div style="font-size: 10px; color: #7e8ba3;">${ssid} ${distance}</div>
+                                </div>
+                                <div class="ap-rssi">${ap.rssi} dBm</div>
+                            </div>
+                        `;
+                    });
+                } else {
+                    detailsHTML = '<div style="color: #7e8ba3; text-align: center;">Aucun détail disponible</div>';
+                }
                 document.getElementById('details').innerHTML = detailsHTML;
             }
         };
         
         ws.onopen = () => {
-            console.log('✅ WebSocket connected');
-            document.querySelector('.status').style.background = '#4CAF50';
+            console.log('✓ WebSocket connected');
+            updateStatus(true);
+            
+            fetch('http://localhost:8000/api/position')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        ws.onmessage({data: JSON.stringify(data)});
+                    }
+                })
+                .catch(err => console.error('Error fetching initial position:', err));
         };
         
         ws.onclose = () => {
-            console.log('❌ WebSocket disconnected');
-            document.querySelector('.status').style.background = '#f44336';
+            console.log('✗ WebSocket disconnected');
+            updateStatus(false);
         };
         
-        fetch('http://localhost:8000/api/position')
+        fetch('http://localhost:8000/api/status')
             .then(r => r.json())
             .then(data => {
-                if (data.success) {
-                    ws.onmessage({data: JSON.stringify(data)});
+                document.getElementById('totalAPs').textContent = data.aps_loaded || 0;
+            })
+            .catch(err => console.error('Error fetching status:', err));
+        
+        fetch('http://localhost:8000/api/aps')
+            .then(r => r.json())
+            .then(data => {
+                apMarkers.forEach(m => map.removeLayer(m));
+                apMarkers = [];
+                
+                if (data.aps) {
+                    data.aps.forEach(ap => {
+                        const apMarker = L.circleMarker([ap.lat, ap.lon], {
+                            radius: 5,
+                            fillColor: '#64b5f6',
+                            color: '#1976d2',
+                            weight: 1,
+                            opacity: 0.8,
+                            fillOpacity: 0.4
+                        }).addTo(map)
+                          .bindPopup(`<b>${ap.ssid}</b><br>${ap.mac}<br>Salle ${ap.room}`);
+                        
+                        apMarkers.push(apMarker);
+                    });
                 }
-            });
+            })
+            .catch(err => console.error('Error fetching APs:', err));
     </script>
 </body>
 </html>
