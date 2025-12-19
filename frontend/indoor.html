@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Indoor - Esclangon Étage 3</title>
+    <meta charset="utf-8">
+    <meta name="viewport" width="device-width, initial-scale=1.0">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            background: #0a0e27; 
+            color: white; 
+            font-family: 'Segoe UI', sans-serif; 
+            overflow: hidden; 
+        }
+        
+        .container { 
+            display: flex; 
+            height: 100vh; 
+        }
+        
+        /* Container de la carte */
+        .map-container { 
+            flex: 1; 
+            position: relative; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #1a1f3a;
+            overflow: hidden;
+        }
+        
+        /* Image du plan */
+        #buildingPlan { 
+            max-width: 95%;
+            max-height: 95%;
+            width: auto;
+            height: auto;
+            display: block;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+        
+        /* Marqueur de position (POINT BLEU) */
+        .position-marker {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: radial-gradient(circle, #3b82f6 0%, #2563eb 70%);
+            border: 3px solid white;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.8),
+                        0 0 40px rgba(59, 130, 246, 0.4);
+            animation: pulse 2s infinite;
+            z-index: 1000;
+            cursor: pointer;
+        }
+        
+        .position-marker::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 40px;
+            height: 40px;
+            border: 2px solid rgba(59, 130, 246, 0.3);
+            border-radius: 50%;
+            animation: ripple 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+            50% { transform: translate(-50%, -50%) scale(1.1); opacity: 0.9; }
+        }
+        
+        @keyframes ripple {
+            0% { width: 20px; height: 20px; opacity: 1; }
+            100% { width: 60px; height: 60px; opacity: 0; }
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            width: 350px;
+            background: #1e293b;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .card {
+            background: #334155;
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #475569;
+        }
+        
+        h1 { 
+            color: #38bdf8; 
+            font-size: 18px; 
+            margin: 0 0 12px 0; 
+        }
+        
+        .info-grid {
+            display: grid;
+            gap: 8px;
+        }
+        
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #475569;
+        }
+        
+        .info-item:last-child {
+            border-bottom: none;
+        }
+        
+        .info-label { 
+            color: #94a3b8; 
+            font-size: 12px; 
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .info-value { 
+            color: #e2e8f0; 
+            font-weight: 600; 
+            font-size: 14px;
+        }
+        
+        .confidence {
+            font-size: 48px;
+            font-weight: 800;
+            text-align: center;
+            padding: 20px;
+            text-shadow: 0 2px 10px currentColor;
+        }
+        
+        .confidence-high { color: #22c55e; }
+        .confidence-medium { color: #eab308; }
+        .confidence-low { color: #ef4444; }
+        
+        .ap-list {
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            max-height: 150px;
+            overflow-y: auto;
+            background: rgba(0,0,0,0.3);
+            padding: 8px;
+            border-radius: 6px;
+        }
+        
+        .ap-item {
+            padding: 4px 0;
+            color: #cbd5e1;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        
+        .ap-item:last-child {
+            border-bottom: none;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .status-active {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+        }
+        
+        .status-waiting {
+            background: rgba(234, 179, 8, 0.2);
+            color: #eab308;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Plan du bâtiment -->
+        <div class="map-container" id="mapContainer">
+            <img id="buildingPlan" src="/photos/plan-etage3.jpeg" alt="Plan Étage 3">
+            <div id="positionMarker" class="position-marker" style="display: none;" title="Vous êtes ici"></div>
+        </div>
+        
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="card">
+                <h1>📍 Position Indoor</h1>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Salle</span>
+                        <span class="info-value" id="room">---</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Étage</span>
+                        <span class="info-value" id="floor">---</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Méthode</span>
+                        <span class="info-value" id="method">---</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Statut</span>
+                        <span id="status" class="status-badge status-waiting">En attente</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h1>🎯 Niveau de Confiance</h1>
+                <div id="confidence" class="confidence confidence-low">---%</div>
+            </div>
+            
+            <div class="card">
+                <h1>📡 Points d'Accès Détectés</h1>
+                <div id="apList" class="ap-list">
+                    <div style="color: #64748b; text-align: center; padding: 20px;">
+                        Aucun scan reçu...
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h1>🕐 Dernière Mise à Jour</h1>
+                <div style="text-align: center; color: #94a3b8; font-size: 14px;" id="timestamp">
+                    ---
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ================================================================
+        // CALIBRATION (À AJUSTER SELON TON PLAN)
+        // ================================================================
+        
+        // Ces valeurs sont des EXEMPLES - tu devras les mesurer sur le terrain
+        // Pour calibrer : marche avec ton téléphone GPS et note les coordonnées
+        // aux 4 coins du plan
+        
+        const CALIBRATION = {
+            // Coin supérieur gauche du plan
+            topLeft: {
+                gps: [48.84530, 2.35690],   // GPS réel à mesurer
+                pixel: [50, 50]              // Position sur l'image
+            },
+            // Coin inférieur droit du plan
+            bottomRight: {
+                gps: [48.84510, 2.35720],   // GPS réel à mesurer
+                pixel: [900, 1400]           // Position sur l'image
+            }
+        };
+        
+        // ================================================================
+        // CONVERSION GPS → PIXELS
+        // ================================================================
+        
+        function gpsToPixel(lat, lon) {
+            const { topLeft, bottomRight } = CALIBRATION;
+            
+            // Calcul de la proportion
+            const latRatio = (lat - topLeft.gps[0]) / (bottomRight.gps[0] - topLeft.gps[0]);
+            const lonRatio = (lon - topLeft.gps[1]) / (bottomRight.gps[1] - topLeft.gps[1]);
+            
+            // Conversion en pixels
+            const x = topLeft.pixel[0] + (bottomRight.pixel[0] - topLeft.pixel[0]) * lonRatio;
+            const y = topLeft.pixel[1] + (bottomRight.pixel[1] - topLeft.pixel[1]) * latRatio;
+            
+            return { x, y };
+        }
+        
+        // ================================================================
+        // AFFICHAGE DE LA POSITION
+        // ================================================================
+        
+        function updatePosition(data) {
+            if (!data || !data.success) {
+                document.getElementById('positionMarker').style.display = 'none';
+                document.getElementById('status').textContent = 'Hors zone';
+                document.getElementById('status').className = 'status-badge status-waiting';
+                return;
+            }
+            
+            // Convertir GPS → Pixels
+            const pos = gpsToPixel(data.lat, data.lon);
+            
+            // Afficher le marqueur BLEU
+            const marker = document.getElementById('positionMarker');
+            marker.style.left = pos.x + 'px';
+            marker.style.top = pos.y + 'px';
+            marker.style.display = 'block';
+            
+            console.log(`Position: GPS(${data.lat}, ${data.lon}) → Pixel(${pos.x}, ${pos.y})`);
+            
+            // Mise à jour des infos
+            document.getElementById('room').textContent = data.room || '---';
+            document.getElementById('floor').textContent = `Étage ${data.floor || '?'}`;
+            document.getElementById('method').textContent = data.method || 'Fingerprinting';
+            
+            document.getElementById('status').textContent = 'Localisé';
+            document.getElementById('status').className = 'status-badge status-active';
+            
+            // Confiance
+            const confValue = parseInt(data.confidence) || 0;
+            const confEl = document.getElementById('confidence');
+            confEl.textContent = data.confidence || '0%';
+            confEl.className = 'confidence ' + 
+                (confValue >= 70 ? 'confidence-high' : 
+                 confValue >= 40 ? 'confidence-medium' : 'confidence-low');
+            
+            // Timestamp
+            if (data.timestamp) {
+                const time = new Date(data.timestamp);
+                document.getElementById('timestamp').textContent = time.toLocaleTimeString('fr-FR');
+            }
+            
+            // Liste des APs
+            if (data.details && data.details.length > 0) {
+                let html = data.details.map(ap => 
+                    `<div class="ap-item">${ap.ssid || ap.mac} <span style="color:#38bdf8">${ap.rssi} dBm</span></div>`
+                ).join('');
+                document.getElementById('apList').innerHTML = html;
+            } else {
+                document.getElementById('apList').innerHTML = 
+                    '<div style="color: #64748b; text-align: center;">Détails non disponibles</div>';
+            }
+        }
+        
+        // ================================================================
+        // WEBSOCKET
+        // ================================================================
+        
+        const ws = new WebSocket(`ws://${window.location.host}/ws`);
+        
+        ws.onopen = () => {
+            console.log('✓ WebSocket connecté');
+            
+            // Charger position initiale
+            fetch('/api/position')
+                .then(r => r.json())
+                .then(data => {
+                    console.log('Position initiale:', data);
+                    updatePosition(data);
+                })
+                .catch(err => console.error('Erreur chargement position:', err));
+        };
+        
+        ws.onerror = (error) => {
+            console.error('Erreur WebSocket:', error);
+        };
+        
+        ws.onclose = () => {
+            console.log('WebSocket déconnecté');
+            document.getElementById('status').textContent = 'Déconnecté';
+            document.getElementById('status').className = 'status-badge status-waiting';
+        };
+        
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            console.log('Message reçu:', data);
+            
+            // Réagir aux mises à jour de position
+            if (data.type === 'position_update') {
+                updatePosition(data);
+            }
+        };
+        
+        // ================================================================
+        // REDIMENSIONNEMENT
+        // ================================================================
+        
+        window.addEventListener('resize', () => {
+            // Recalculer la position du marqueur si redimensionnement
+            const marker = document.getElementById('positionMarker');
+            if (marker.style.display !== 'none') {
+                // La position se met à jour automatiquement car relative à l'image
+            }
+        });
+    </script>
+</body>
+</html>

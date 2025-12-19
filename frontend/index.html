@@ -1,699 +1,157 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Géolocalisation WiFi - Esclangon</title>
+    <title>Jussieu - Géolocalisation WiFi</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    
-    <!-- Leaflet.js : Bibliothèque de cartographie interactive open-source -->
-    <!-- Utilisée pour afficher la carte OpenStreetMap et les marqueurs de position -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
     <style>
-        /* ================================================================
-           STYLES GÉNÉRAUX
-           ================================================================ */
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; background: #0f172a; color: white; display: flex; height: 100vh; }
         
-        /* Reset CSS : supprime les marges/paddings par défaut du navigateur */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        .sidebar { width: 350px; background: #1e293b; padding: 20px; display: flex; flex-direction: column; box-shadow: 2px 0 15px rgba(0,0,0,0.5); z-index: 1000; }
+        #map { flex: 1; z-index: 1; }
+        
+        .header { text-align: center; margin-bottom: 20px; }
+        .header h1 { color: #38bdf8; margin: 0; font-size: 22px; }
+        .header p { color: #94a3b8; font-size: 12px; margin: 5px 0 0 0; }
+        
+        .result-card { background: #334155; border-radius: 12px; padding: 20px; text-align: center; border: 1px solid #475569; margin-bottom: 20px; transition: transform 0.2s; }
+        .location-name { font-size: 24px; font-weight: bold; color: #fff; margin: 10px 0; }
+        .confidence { font-size: 12px; text-transform: uppercase; padding: 4px 10px; border-radius: 20px; display: inline-block; font-weight: bold; }
+        .conf-high { background: #16a34a; color: white; }
+        .conf-med { background: #ca8a04; color: white; }
+        .conf-low { background: #dc2626; color: white; }
+        
+        .photo-container { width: 100%; height: 200px; background: #0f172a; border-radius: 8px; overflow: hidden; margin-top: 15px; display: flex; align-items: center; justify-content: center; border: 1px solid #475569; }
+        .photo-container img { width: 100%; height: 100%; object-fit: cover; display: none; }
+        .placeholder-text { color: #64748b; font-size: 12px; }
+
+        .log-container { flex: 1; background: #0f172a; border-radius: 8px; padding: 10px; font-family: monospace; font-size: 11px; color: #cbd5e1; overflow-y: auto; border: 1px solid #334155; }
+        .log-entry { margin-bottom: 4px; border-bottom: 1px solid #1e293b; padding-bottom: 2px; }
+        .log-time { color: #64748b; margin-right: 5px; }
+
+        /* Icone qui pulse sur la carte */
+        .pulse-icon {
+            background-color: #38bdf8; border-radius: 50%;
+            box-shadow: 0 0 0 0 rgba(56, 189, 248, 1);
+            animation: pulse-blue 2s infinite;
         }
-        
-        /* Corps de la page : fond sombre, police système moderne */
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #0a0e27;     /* Bleu très foncé */
-            color: #e0e0e0;          /* Gris clair pour le texte */
-        }
-        
-        /* ================================================================
-           LAYOUT PRINCIPAL
-           ================================================================ */
-        
-        /* Container : layout flexbox horizontal (sidebar + carte) */
-        .container {
-            display: flex;
-            height: 100vh;          /* Hauteur plein écran */
-        }
-        
-        /* Sidebar gauche : affiche les informations de localisation */
-        .sidebar {
-            width: 380px;
-            background: linear-gradient(180deg, #1a1f3a 0%, #0f1729 100%);
-            padding: 25px;
-            overflow-y: auto;       /* Scroll si contenu trop long */
-            box-shadow: 4px 0 20px rgba(0,0,0,0.5);
-        }
-        
-        /* ================================================================
-           HEADER (Titre + Sous-titre)
-           ================================================================ */
-        
-        .header {
-            text-align: center;
-            margin-bottom: 25px;
-            padding-bottom: 20px;
-            border-bottom: 2px solid #2a3f5f;
-        }
-        
-        .header h1 {
-            font-size: 24px;
-            color: #64b5f6;         /* Bleu clair */
-            margin-bottom: 5px;
-        }
-        
-        .header .subtitle {
-            font-size: 12px;
-            color: #7e8ba3;         /* Gris bleuté */
-        }
-        
-        /* ================================================================
-           INDICATEUR DE STATUT (Connecté / Déconnecté)
-           ================================================================ */
-        
-        .status-indicator {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 15px 0;
-            padding: 10px;
-            background: rgba(76, 175, 80, 0.1);    /* Vert semi-transparent */
-            border-radius: 8px;
-            border: 1px solid rgba(76, 175, 80, 0.3);
-        }
-        
-        /* Point lumineux animé indiquant le statut de connexion */
-        .status-dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;     /* Forme circulaire */
-            background: #4CAF50;    /* Vert = connecté */
-            margin-right: 10px;
-            animation: pulse 2s infinite;  /* Animation pulsation */
-        }
-        
-        /* Point rouge quand déconnecté */
-        .status-dot.disconnected {
-            background: #f44336;    /* Rouge */
-        }
-        
-        /* Animation de pulsation (breathing effect) */
-        @keyframes pulse {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.6; transform: scale(1.1); }
-        }
-        
-        /* ================================================================
-           CARTES D'INFORMATION (Salle, Étage, Position, etc.)
-           ================================================================ */
-        
-        /* Carte avec effet de profondeur et hover */
-        .info-card {
-            background: linear-gradient(135deg, #1e2842 0%, #252d47 100%);
-            border-radius: 12px;
-            padding: 18px;
-            margin-bottom: 15px;
-            border: 1px solid #2a3f5f;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            transition: transform 0.2s, box-shadow 0.2s;  /* Animation hover */
-        }
-        
-        /* Effet de survol : la carte se soulève légèrement */
-        .info-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 16px rgba(0,0,0,0.4);
-        }
-        
-        /* Label d'une information (ex: "SALLE DÉTECTÉE") */
-        .info-label {
-            font-size: 11px;
-            color: #7e8ba3;
-            text-transform: uppercase;
-            letter-spacing: 1px;    /* Espacement des lettres */
-            margin-bottom: 8px;
-            font-weight: 600;
-        }
-        
-        /* Valeur principale d'une information (ex: "201") */
-        .info-value {
-            font-size: 28px;
-            font-weight: 700;
-            color: #64b5f6;         /* Bleu clair */
-            text-shadow: 0 2px 4px rgba(100, 181, 246, 0.3);  /* Ombre lumineuse */
-        }
-        
-        /* Variante plus petite pour les textes longs */
-        .info-value.large {
-            font-size: 20px;
-        }
-        
-        /* Badge indiquant la méthode de localisation (ex: "RSSI Matching") */
-        .method-badge {
-            display: inline-block;
-            padding: 4px 12px;
-            background: rgba(100, 181, 246, 0.2);
-            border-radius: 12px;
-            font-size: 11px;
-            color: #64b5f6;
-            margin-top: 5px;
-        }
-        
-        /* ================================================================
-           SECTION DÉTAILS DES APs
-           ================================================================ */
-        
-        /* Container de la liste des APs détectés */
-        .details-section {
-            background: rgba(0,0,0,0.3);
-            border-radius: 8px;
-            padding: 15px;
-            margin-top: 15px;
-        }
-        
-        /* Titre de la section */
-        .details-title {
-            font-size: 13px;
-            color: #7e8ba3;
-            margin-bottom: 10px;
-            font-weight: 600;
-        }
-        
-        /* Item représentant un AP (adresse MAC + RSSI) */
-        .ap-item {
-            display: flex;
-            justify-content: space-between;  /* MAC à gauche, RSSI à droite */
-            padding: 8px 0;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
-            font-size: 12px;
-        }
-        
-        /* Pas de bordure pour le dernier item */
-        .ap-item:last-child {
-            border-bottom: none;
-        }
-        
-        /* Adresse MAC affichée en police monospace */
-        .ap-mac {
-            color: #90caf9;         /* Bleu clair */
-            font-family: 'Courier New', monospace;
-        }
-        
-        /* Valeur RSSI en vert */
-        .ap-rssi {
-            color: #a5d6a7;         /* Vert pastel */
-            font-weight: 600;
-        }
-        
-        /* ================================================================
-           CARTE LEAFLET
-           ================================================================ */
-        
-        /* Container de la carte : prend tout l'espace restant */
-        #map {
-            flex: 1;
-            position: relative;
-        }
-        
-        /* ================================================================
-           COULEURS DE CONFIANCE
-           ================================================================ */
-        
-        /* Confiance élevée (>= 70%) : vert */
-        .confidence-high {
-            color: #4CAF50;
-        }
-        
-        /* Confiance moyenne (40-70%) : orange */
-        .confidence-medium {
-            color: #FF9800;
-        }
-        
-        /* Confiance faible (< 40%) : rouge */
-        .confidence-low {
-            color: #f44336;
-        }
-        
-        /* ================================================================
-           GRILLE DE STATISTIQUES
-           ================================================================ */
-        
-        /* Grid 2 colonnes pour afficher APs détectés / APs en base */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-top: 15px;
-        }
-        
-        /* Box individuelle de statistique */
-        .stat-box {
-            background: rgba(0,0,0,0.2);
-            padding: 10px;
-            border-radius: 6px;
-            text-align: center;
-        }
-        
-        /* Valeur de la statistique (nombre) */
-        .stat-value {
-            font-size: 20px;
-            font-weight: 700;
-            color: #64b5f6;
-        }
-        
-        /* Label de la statistique */
-        .stat-label {
-            font-size: 10px;
-            color: #7e8ba3;
-            margin-top: 4px;
+        @keyframes pulse-blue {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 15px rgba(56, 189, 248, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(56, 189, 248, 0); }
         }
     </style>
 </head>
 <body>
-    <!-- ================================================================
-         STRUCTURE HTML : SIDEBAR + CARTE
-         ================================================================ -->
-    
-    <div class="container">
-        <!-- SIDEBAR GAUCHE : Dashboard d'informations -->
-        <div class="sidebar">
-            <!-- Header avec titre et sous-titre -->
-            <div class="header">
-                <h1>📍 WiFi Localisation</h1>
-                <div class="subtitle">Polytech Sorbonne - Bâtiment Esclangon</div>
-            </div>
+
+    <div class="sidebar">
+        <div class="header">
+            <h1>📍 Localisation Campus</h1>
+            <p>Système de Fusion WiFi + GPS</p>
+        </div>
+
+        <div class="result-card">
+            <div style="font-size: 11px; color: #94a3b8; text-transform: uppercase;">Position Détectée</div>
+            <div class="location-name" id="locName">--</div>
+            <div id="confBadge" class="confidence" style="background: #475569;">Attente...</div>
             
-            <!-- Indicateur de connexion WebSocket -->
-            <div class="status-indicator">
-                <span class="status-dot" id="statusDot"></span>
-                <span id="statusText">Connexion...</span>
-            </div>
-            
-            <!-- Carte 1 : Salle détectée -->
-            <div class="info-card">
-                <div class="info-label">🚪 SALLE DÉTECTÉE</div>
-                <div class="info-value" id="room">---</div>
-                <div class="method-badge" id="method">En attente</div>
-            </div>
-            
-            <!-- Carte 2 : Étage -->
-            <div class="info-card">
-                <div class="info-label">🏢 ÉTAGE</div>
-                <div class="info-value" id="floor">---</div>
-            </div>
-            
-            <!-- Carte 3 : Position / Description -->
-            <div class="info-card">
-                <div class="info-label">📍 POSITION</div>
-                <div class="info-value large" id="location">En attente de données...</div>
-            </div>
-            
-            <!-- Carte 4 : Confiance + Statistiques -->
-            <div class="info-card">
-                <div class="info-label">🎯 CONFIANCE</div>
-                <div class="info-value" id="confidence">---</div>
-                
-                <!-- Grid de statistiques -->
-                <div class="stats-grid">
-                    <div class="stat-box">
-                        <div class="stat-value" id="matchedAPs">0</div>
-                        <div class="stat-label">APs Détectés</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-value" id="totalAPs">0</div>
-                        <div class="stat-label">APs en Base</div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Carte 5 : Dernière mise à jour -->
-            <div class="info-card">
-                <div class="info-label">🕐 DERNIÈRE MAJ</div>
-                <div class="info-value large" id="time">---</div>
-            </div>
-            
-            <!-- Section détails : Liste des APs détectés -->
-            <div class="details-section">
-                <div class="details-title">📡 Points d'accès détectés</div>
-                <div id="details"></div>
+            <div class="photo-container">
+                <span class="placeholder-text" id="noPhotoText">Aucune photo disponible</span>
+                <img id="roomPhoto" src="" alt="Photo du lieu">
             </div>
         </div>
-        
-        <!-- CARTE DROITE : Carte interactive Leaflet -->
-        <div id="map"></div>
+
+        <div class="log-container" id="console">
+            <div class="log-entry">Système prêt. Attente données...</div>
+        </div>
     </div>
 
+    <div id="map"></div>
+
     <script>
-        /* ================================================================
-           INITIALISATION DE LA CARTE LEAFLET
-           ================================================================
-           
-           Leaflet.js est une bibliothèque JavaScript pour cartes interactives.
-           Plus légère et simple que Google Maps API.
-        */
-        
-        // Créer la carte centrée sur Polytech Sorbonne (Esclangon)
-        // Coordonnées: 48.845151, 2.357054
-        // Zoom: 19 (très proche, niveau bâtiment)
-        const map = L.map('map').setView([48.845151, 2.357054], 19);
-        
-        // Ajouter la couche de tuiles OpenStreetMap
-        // OpenStreetMap est une carte collaborative libre et gratuite
-        // Alternatives: Google Maps, Mapbox, etc.
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap',
-            maxZoom: 20     // Zoom maximum autorisé
-        }).addTo(map);
-        
-        /* ================================================================
-           VARIABLES GLOBALES
-           ================================================================ */
-        
-        let marker = null;              // Marqueur rouge de position actuelle
-        let apMarkers = [];             // Array des marqueurs bleus des APs connus
-        let statusConnected = false;    // État de connexion WebSocket
-        
-        /* ================================================================
-           WEBSOCKET : COMMUNICATION TEMPS RÉEL AVEC LE BACKEND
-           ================================================================
-           
-           WebSocket permet une communication bidirectionnelle en temps réel.
-           Avantages vs HTTP polling:
-           - Latence ultra-faible (~10ms vs 1000ms)
-           - Pas de surcharge réseau (1 connexion vs requête/seconde)
-           - Push du serveur vers client (pas besoin de demander)
-        */
-        
-        // Se connecter au serveur WebSocket sur localhost:8000
-        const ws = new WebSocket('ws://localhost:8000/ws');
-        
-        /* ================================================================
-           FONCTION : MISE À JOUR DU STATUT DE CONNEXION
-           ================================================================ */
-        
-        function updateStatus(connected) {
-            /*
-             * Met à jour l'indicateur de statut en haut du dashboard.
-             * 
-             * Paramètres:
-             *   connected (bool): true si WebSocket connecté, false sinon
-             * 
-             * Actions:
-             *   - Change la couleur du point (vert/rouge)
-             *   - Change le texte du statut
-             */
-            statusConnected = connected;
-            const dot = document.getElementById('statusDot');
-            const text = document.getElementById('statusText');
-            
-            if (connected) {
-                // État connecté
-                dot.classList.remove('disconnected');
-                text.textContent = 'Connecté • Temps réel';
-                text.style.color = '#4CAF50';
-            } else {
-                // État déconnecté
-                dot.classList.add('disconnected');
-                text.textContent = 'Déconnecté';
-                text.style.color = '#f44336';
-            }
+        // 1. Initialisation Carte
+        const map = L.map('map').setView([48.8470, 2.3560], 18);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 21 }).addTo(map);
+
+        let userMarker = null;
+
+        function log(msg) {
+            const container = document.getElementById('console');
+            const time = new Date().toLocaleTimeString();
+            const div = document.createElement('div');
+            div.className = 'log-entry';
+            div.innerHTML = `<span class="log-time">[${time}]</span> ${msg}`;
+            container.insertBefore(div, container.firstChild);
         }
-        
-        /* ================================================================
-           FONCTION : CLASSE CSS SELON CONFIANCE
-           ================================================================ */
-        
-        function getConfidenceClass(confidenceStr) {
-            /*
-             * Retourne la classe CSS appropriée selon le niveau de confiance.
-             * 
-             * Paramètres:
-             *   confidenceStr (string): Confiance en % (ex: "97%")
-             * 
-             * Retourne:
-             *   string: Nom de classe CSS ('confidence-high', 'medium', ou 'low')
-             * 
-             * Seuils:
-             *   >= 70% → Vert (haute confiance)
-             *   40-69% → Orange (confiance moyenne)
-             *   < 40%  → Rouge (faible confiance)
-             */
-            const value = parseInt(confidenceStr);
-            if (value >= 70) return 'confidence-high';
-            if (value >= 40) return 'confidence-medium';
-            return 'confidence-low';
-        }
-        
-        /* ================================================================
-           WEBSOCKET : RÉCEPTION DES DONNÉES EN TEMPS RÉEL
-           ================================================================
-           
-           Callback déclenché quand le backend envoie une nouvelle position.
-           
-           Flow:
-           1. ESP32 détecte des APs WiFi
-           2. Backend calcule la position (RSSI Matching)
-           3. Backend envoie via WebSocket → ce callback se déclenche
-           4. Frontend met à jour instantanément la carte et le dashboard
-        */
+
+        // 2. Connexion WebSocket
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws`);
+
+        ws.onopen = () => log("Connecté au serveur de localisation");
         
         ws.onmessage = (event) => {
-            /*
-             * Traite les messages WebSocket reçus du backend.
-             * 
-             * Format du message (JSON):
-             * {
-             *     "success": true,
-             *     "lat": 48.845129,
-             *     "lon": 2.356774,
-             *     "room": "201",
-             *     "floor": "2",
-             *     "location": "Salle 201",
-             *     "method": "RSSI Matching",
-             *     "confidence": "97%",
-             *     "matched_aps": 3,
-             *     "details": [
-             *         {"mac": "1e:92:9b:e8:5c:d9", "rssi": -65},
-             *         {"mac": "76:a0:74:60:bb:9d", "rssi": -70}
-             *     ],
-             *     "timestamp": "2025-01-20T17:30:00"
-             * }
-             */
-            
-            // Parser le JSON
             const data = JSON.parse(event.data);
-            
-            // Vérifier que la localisation a réussi
-            if (data.success) {
-                // ============================================================
-                // MISE À JOUR DU MARQUEUR SUR LA CARTE
-                // ============================================================
-                
-                if (marker) {
-                    // Si marqueur existe déjà, simplement déplacer
-                    marker.setLatLng([data.lat, data.lon]);
-                } else {
-                    // Sinon, créer un nouveau marqueur rouge
-                    marker = L.marker([data.lat, data.lon], {
-                        icon: L.icon({
-                            // Utiliser un marqueur rouge depuis GitHub
-                            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-                            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-                            iconSize: [25, 41],
-                            iconAnchor: [12, 41],
-                            popupAnchor: [1, -34],
-                            shadowSize: [41, 41]
-                        })
-                    }).addTo(map)
-                      .bindPopup(`<b>${data.room}</b><br>Étage ${data.floor}<br>${data.location}`);
-                }
-                
-                // Centrer la carte sur la nouvelle position
-                map.setView([data.lat, data.lon], 19);
-                
-                // ============================================================
-                // MISE À JOUR DU DASHBOARD
-                // ============================================================
-                
-                // Salle détectée
-                document.getElementById('room').textContent = data.room;
-                
-                // Étage
-                document.getElementById('floor').textContent = data.floor;
-                
-                // Description de la position
-                document.getElementById('location').textContent = data.location;
-                
-                // Méthode de localisation utilisée
-                document.getElementById('method').textContent = data.method || 'Unknown';
-                
-                // Confiance avec couleur dynamique
-                const confidenceEl = document.getElementById('confidence');
-                confidenceEl.textContent = data.confidence;
-                confidenceEl.className = 'info-value ' + getConfidenceClass(data.confidence);
-                
-                // Nombre d'APs matchés
-                document.getElementById('matchedAPs').textContent = data.matched_aps || 0;
-                
-                // Heure de mise à jour
-                const timestamp = new Date(data.timestamp);
-                document.getElementById('time').textContent = timestamp.toLocaleTimeString('fr-FR');
-                
-                // ============================================================
-                // LISTE DES APs DÉTECTÉS
-                // ============================================================
-                
-                let detailsHTML = '';
-                if (data.details && data.details.length > 0) {
-                    // Construire le HTML pour chaque AP
-                    data.details.forEach(ap => {
-                        const ssid = ap.ssid || 'Unknown';
-                        const distance = ap.distance || '';
-                        detailsHTML += `
-                            <div class="ap-item">
-                                <div>
-                                    <div class="ap-mac">${ap.mac}</div>
-                                    <div style="font-size: 10px; color: #7e8ba3;">${ssid} ${distance}</div>
-                                </div>
-                                <div class="ap-rssi">${ap.rssi} dBm</div>
-                            </div>
-                        `;
-                    });
-                } else {
-                    // Aucun AP détecté
-                    detailsHTML = '<div style="color: #7e8ba3; text-align: center;">Aucun détail disponible</div>';
-                }
-                
-                // Injecter le HTML dans la section détails
-                document.getElementById('details').innerHTML = detailsHTML;
+
+            // On ne s'intéresse qu'aux mises à jour de position
+            if (data.type === 'position_update' && data.success) {
+                updateUI(data);
             }
         };
-        
-        /* ================================================================
-           WEBSOCKET : CONNEXION ÉTABLIE
-           ================================================================
-           
-           Callback déclenché quand la connexion WebSocket est établie.
-        */
-        
-        ws.onopen = () => {
-            /*
-             * Actions au démarrage:
-             * 1. Mettre à jour l'indicateur de statut (vert)
-             * 2. Charger la dernière position connue via l'API REST
-             */
+
+        function updateUI(data) {
+            // A. Mise à jour Texte
+            document.getElementById('locName').innerText = data.location || data.room;
             
-            console.log('✓ WebSocket connected');
-            updateStatus(true);
+            // B. Badge Confiance
+            const badge = document.getElementById('confBadge');
+            const confVal = parseInt(data.confidence);
+            badge.innerText = `Confiance: ${data.confidence}`;
             
-            // Charger la dernière position connue (si disponible)
-            // Utile si l'utilisateur rafraîchit la page
-            fetch('http://localhost:8000/api/position')
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) {
-                        // Simuler la réception d'un message WebSocket
-                        ws.onmessage({data: JSON.stringify(data)});
-                    }
-                })
-                .catch(err => console.error('Error fetching initial position:', err));
-        };
-        
-        /* ================================================================
-           WEBSOCKET : CONNEXION FERMÉE
-           ================================================================
-           
-           Callback déclenché si la connexion WebSocket est perdue.
-        */
-        
-        ws.onclose = () => {
-            /*
-             * Actions à la déconnexion:
-             * - Mettre à jour l'indicateur de statut (rouge)
-             * - Logger dans la console
-             */
-            
-            console.log('✗ WebSocket disconnected');
-            updateStatus(false);
-        };
-        
-        /* ================================================================
-           REQUÊTE HTTP : CHARGER LE STATUT INITIAL
-           ================================================================
-           
-           Requête au démarrage pour afficher le nombre d'APs en base.
-        */
-        
-        fetch('http://localhost:8000/api/status')
-            .then(r => r.json())
-            .then(data => {
-                /*
-                 * Réponse attendue:
-                 * {
-                 *     "status": "running",
-                 *     "aps_loaded": 7,
-                 *     "fingerprints": 45
-                 * }
-                 */
-                document.getElementById('totalAPs').textContent = data.aps_loaded || 0;
-            })
-            .catch(err => console.error('Error fetching status:', err));
-        
-        /* ================================================================
-           REQUÊTE HTTP : CHARGER LES APs CONNUS
-           ================================================================
-           
-           Requête au démarrage pour afficher les points bleus sur la carte.
-           Chaque point bleu = position moyenne d'un AP connu.
-        */
-        
-        fetch('http://localhost:8000/api/aps')
-            .then(r => r.json())
-            .then(data => {
-                /*
-                 * Réponse attendue:
-                 * {
-                 *     "total": 7,
-                 *     "aps": [
-                 *         {
-                 *             "mac": "1e:92:9b:e8:5c:d9",
-                 *             "ssid": "eduroam",
-                 *             "lat": 48.845129,
-                 *             "lon": 2.356774,
-                 *             "room": "201",
-                 *             "floor": "2"
-                 *         },
-                 *         ...
-                 *     ]
-                 * }
-                 */
-                
-                // Supprimer les anciens marqueurs (si refresh)
-                apMarkers.forEach(m => map.removeLayer(m));
-                apMarkers = [];
-                
-                // Créer un marqueur bleu pour chaque AP
-                if (data.aps) {
-                    data.aps.forEach(ap => {
-                        // CircleMarker = petit cercle au lieu d'un pin
-                        const apMarker = L.circleMarker([ap.lat, ap.lon], {
-                            radius: 5,
-                            fillColor: '#64b5f6',     // Bleu clair
-                            color: '#1976d2',         // Bordure bleu foncé
-                            weight: 1,
-                            opacity: 0.8,
-                            fillOpacity: 0.4
-                        }).addTo(map)
-                          .bindPopup(`<b>${ap.ssid}</b><br>${ap.mac}<br>Salle ${ap.room}`);
-                        
-                        // Ajouter à la liste pour pouvoir les supprimer plus tard
-                        apMarkers.push(apMarker);
-                    });
+            badge.className = 'confidence'; // Reset
+            if (confVal > 75) badge.classList.add('conf-high');
+            else if (confVal > 40) badge.classList.add('conf-med');
+            else badge.classList.add('conf-low');
+
+            // C. Mise à jour Carte
+            if (data.lat && data.lon) {
+                if (userMarker) {
+                    userMarker.setLatLng([data.lat, data.lon]);
+                } else {
+                    const icon = L.divIcon({ className: 'pulse-icon', iconSize: [15, 15] });
+                    userMarker = L.marker([data.lat, data.lon], { icon: icon }).addTo(map);
                 }
-            })
-            .catch(err => console.error('Error fetching APs:', err));
+                map.panTo([data.lat, data.lon]);
+            }
+
+            // D. Mise à jour Photo
+            const imgEl = document.getElementById('roomPhoto');
+            const txtEl = document.getElementById('noPhotoText');
+            
+            if (data.room_photo) {
+                imgEl.src = `/photos/${data.room_photo}`;
+                imgEl.style.display = 'block';
+                txtEl.style.display = 'none';
+            } else {
+                imgEl.style.display = 'none';
+                txtEl.style.display = 'block';
+            }
+
+            log(`📍 Localisé: ${data.location} (${data.confidence})`);
+        }
+
+        // Charger les points connus (pour info visuelle)
+        fetch('/api/collected-points').then(r => r.json()).then(data => {
+            if(data.points) {
+                data.points.forEach(p => {
+                    L.circleMarker([p.lat, p.lon], {
+                        radius: 2, color: '#64748b', fillOpacity: 0.3
+                    }).addTo(map);
+                });
+            }
+        });
     </script>
 </body>
 </html>

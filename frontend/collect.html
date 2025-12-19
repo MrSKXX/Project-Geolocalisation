@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Collecte Campus</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; display: flex; height: 100vh; overflow: hidden; }
+        .sidebar { width: 380px; background: #1e293b; padding: 20px; display: flex; flex-direction: column; gap: 15px; overflow-y: auto; z-index: 1000; box-shadow: 4px 0 15px rgba(0,0,0,0.5); }
+        #map { flex: 1; }
+        .card { background: #334155; padding: 15px; border-radius: 10px; border: 1px solid #475569; }
+        h1 { font-size: 20px; color: #38bdf8; margin: 0 0 12px 0; }
+        .status-box { padding: 12px; border-radius: 6px; font-size: 14px; font-weight: 600; text-align: center; margin-bottom: 8px; transition: 0.3s; }
+        .waiting { background: linear-gradient(135deg, #ca8a04 0%, #eab308 100%); color: #fff; }
+        .ready { background: linear-gradient(135deg, #16a34a 0%, #22c55e 100%); color: #fff; animation: pulse 2s infinite; }
+        .error { background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%); color: #fff; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.8; } }
+        label { font-size: 11px; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.8px; font-weight: 600; display: block; margin-bottom: 5px; }
+        input { width: 100%; padding: 12px; margin-bottom: 12px; background: #0f172a; border: 2px solid #475569; color: white; border-radius: 6px; font-size: 14px; }
+        input:focus { border-color: #38bdf8; outline: none; }
+        button { width: 100%; padding: 16px; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 15px; text-transform: uppercase; transition: 0.2s; }
+        button:disabled { background: #475569; color: #94a3b8; cursor: not-allowed; }
+        button:not(:disabled) { background: linear-gradient(135deg, #38bdf8 0%, #0ea5e9 100%); color: #0f172a; box-shadow: 0 4px 15px rgba(56, 189, 248, 0.4); }
+        button:not(:disabled):hover { transform: translateY(-2px); }
+        .ap-list { font-family: monospace; font-size: 12px; color: #cbd5e1; max-height: 140px; overflow-y: auto; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 6px; margin-bottom: 12px; border: 1px solid #475569; }
+        .ap-list div { padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .log { font-family: monospace; font-size: 11px; color: #94a3b8; max-height: 100px; overflow-y: auto; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 6px; border: 1px solid #475569; }
+        .counter { text-align: center; font-size: 56px; font-weight: 800; color: #38bdf8; padding: 15px; }
+        #serverResult { margin-top: 10px; padding: 10px; text-align: center; font-size: 13px; border-radius: 6px; font-weight: 600; }
+        @media (max-width: 768px) { body { flex-direction: column-reverse; } .sidebar { width: 100%; height: 60%; } #map { height: 40%; } }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="card">
+            <h1>📍 Collecte Campus</h1>
+            <div id="gpsStatus" class="status-box waiting">🛰️ GPS...</div>
+            <div id="espStatus" class="status-box waiting">📡 ESP32...</div>
+        </div>
+        <div class="card">
+            <h1>📝 Nouveau Point</h1>
+            <label>Nom du lieu</label>
+            <input type="text" id="locationName" placeholder="Ex: Salle 319" autocomplete="off">
+            <label>Réseaux détectés</label>
+            <div class="ap-list" id="apList">Aucun scan...</div>
+            <button id="recordBtn" onclick="recordPoint()" disabled>Attente...</button>
+            <div id="serverResult"></div>
+        </div>
+        <div class="card">
+            <h1>📊 Base</h1>
+            <div class="counter" id="pointCounter">0</div>
+        </div>
+        <div class="card">
+            <div class="log" id="log">Système démarré...</div>
+        </div>
+    </div>
+    <div id="map"></div>
+
+    <script>
+        const map = L.map('map').setView([48.8470, 2.3560], 17);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 20 }).addTo(map);
+
+        let gpsLat = null, gpsLon = null, gpsAcc = null;
+        let lastScanData = null;
+        let gpsMarker = null;
+
+        function log(msg) {
+            const el = document.getElementById('log');
+            el.innerHTML = `${new Date().toLocaleTimeString()} ${msg}<br>` + el.innerHTML;
+        }
+
+        function checkReady() {
+            const btn = document.getElementById('recordBtn');
+            const name = document.getElementById('locationName').value.trim();
+            
+            if (gpsLat && lastScanData && name.length > 0) {
+                btn.disabled = false;
+                btn.textContent = '✅ ENREGISTRER';
+            } else {
+                btn.disabled = true;
+                btn.textContent = !gpsLat ? '🛰️ GPS...' : !lastScanData ? '📡 ESP32...' : '✏️ Nom...';
+            }
+        }
+
+        // GPS
+        if ("geolocation" in navigator) {
+            navigator.geolocation.watchPosition(
+                (pos) => {
+                    gpsLat = pos.coords.latitude;
+                    gpsLon = pos.coords.longitude;
+                    gpsAcc = pos.coords.accuracy;
+
+                    document.getElementById('gpsStatus').className = 'status-box ready';
+                    document.getElementById('gpsStatus').innerHTML = `🛰️ GPS OK (${Math.round(gpsAcc)}m)`;
+
+                    if (gpsMarker) {
+                        gpsMarker.setLatLng([gpsLat, gpsLon]);
+                    } else {
+                        gpsMarker = L.circleMarker([gpsLat, gpsLon], {
+                            color: '#38bdf8', fillColor: '#38bdf8', fillOpacity: 0.6, radius: 12
+                        }).addTo(map).bindPopup("📍 Ma Position");
+                        map.setView([gpsLat, gpsLon], 18);
+                    }
+                    checkReady();
+                },
+                (err) => {
+                    document.getElementById('gpsStatus').className = 'status-box error';
+                    document.getElementById('gpsStatus').innerHTML = `❌ ${err.message}`;
+                },
+                { enableHighAccuracy: true, maximumAge: 2000 }
+            );
+        }
+
+        // WebSocket
+        const ws = new WebSocket(`ws://${window.location.host}/ws`);
+        ws.onopen = () => log("WS OK");
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === 'raw_scan') {
+                lastScanData = data.networks;
+                document.getElementById('espStatus').className = 'status-box ready';
+                document.getElementById('espStatus').innerHTML = `📡 ${data.networks.length} APs`;
+                
+                let html = data.networks.map(n => `<div>${n.ssid} <span style="color:#38bdf8">(${n.rssi}dBm)</span></div>`).join('');
+                document.getElementById('apList').innerHTML = html;
+                
+                log(`${data.networks.length} APs`);
+                checkReady();
+            }
+        };
+
+        document.getElementById('locationName').addEventListener('input', checkReady);
+
+        async function recordPoint() {
+            const name = document.getElementById('locationName').value.trim();
+            const resDiv = document.getElementById('serverResult');
+            
+            console.log("=== ENREGISTREMENT ===");
+            console.log("Nom:", name);
+            console.log("GPS:", gpsLat, gpsLon);
+            console.log("Networks:", lastScanData);
+            
+            resDiv.style.background = '#ca8a04';
+            resDiv.style.color = '#fff';
+            resDiv.innerHTML = "⏳ Envoi...";
+            
+            try {
+                const payload = {
+                    location_name: name,
+                    description: "",
+                    lat: gpsLat,
+                    lon: gpsLon,
+                    accuracy: gpsAcc || 0,
+                    networks: lastScanData
+                };
+                
+                console.log("Payload:", JSON.stringify(payload, null, 2));
+                
+                const response = await fetch('/api/collect-point', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                console.log("HTTP:", response.status);
+                
+                const result = await response.json();
+                console.log("Réponse:", result);
+                
+                if (result.success) {
+                    resDiv.style.background = '#16a34a';
+                    resDiv.innerHTML = `✅ ${result.message} (${result.aps_saved} APs)`;
+                    log(`✅ ${name} OK`);
+                    
+                    L.circleMarker([gpsLat, gpsLon], {
+                        color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.8, radius: 6
+                    }).addTo(map).bindPopup(name);
+                    
+                    document.getElementById('locationName').value = "";
+                    lastScanData = null;
+                    document.getElementById('espStatus').className = 'status-box waiting';
+                    document.getElementById('espStatus').innerHTML = "📡 Attente...";
+                    checkReady();
+                    loadPoints();
+                } else {
+                    const err = result.message || result.error || result.detail || "Erreur";
+                    resDiv.style.background = '#dc2626';
+                    resDiv.innerHTML = `❌ ${err}`;
+                    log(`❌ ${err}`);
+                    console.error(result);
+                }
+            } catch (e) {
+                resDiv.style.background = '#dc2626';
+                resDiv.innerHTML = `❌ ${e.message}`;
+                log(`❌ ${e.message}`);
+                console.error(e);
+            }
+        }
+
+        function loadPoints() {
+            fetch('/api/collected-points').then(r => r.json()).then(data => {
+                document.getElementById('pointCounter').innerText = data.points.length;
+                data.points.forEach(p => {
+                    L.circleMarker([p.lat, p.lon], {
+                        color: '#f59e0b', fillOpacity: 0.4, radius: 4
+                    }).addTo(map).bindPopup(p.location);
+                });
+            });
+        }
+        
+        loadPoints();
+    </script>
+</body>
+</html>
